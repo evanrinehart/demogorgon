@@ -27,6 +27,11 @@ Demogorgon.new do
     puts "#{filename} #{events.inspect}"
   end
 
+  # do on a cron-like schedule (sec, min, hour, month, day, day-of-week)
+  on_schedule "0 0 */15 * * *" do |now|
+    puts "BING BONG"
+  end
+
   # think of this as "tail -f", use it on a named pipe
   each_line_in_file 'bar-stream' do |msg|
     puts "tail: #{msg}"
