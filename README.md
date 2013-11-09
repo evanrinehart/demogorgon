@@ -21,7 +21,6 @@ Demogorgon.new do
     tell["hello world\n"]
   end
 
-
   # do this in response to inotify filesystem events, such as a touch command
   monitor 'some/file', [:all_events] do |filename, events|
     puts "#{filename} #{events.inspect}"

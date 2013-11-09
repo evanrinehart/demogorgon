@@ -1,3 +1,5 @@
+require 'time'
+
 module Cron
 
 # *
@@ -11,32 +13,37 @@ module Cron
 #   | e,e,e,...
 #   | */number
 
-  def self.parse raw
-    # split on ,
-    # parse depending on if contains - / * or not
-    # * means all
-    # / means filter by divisibility
-    # , means union
-    # number is a single element list
-    # a-b means inclusive range
+  class Spec
 
-    # * and validation depends on position 1 though 6
+    def initialize raw
+      @raw = raw
+#FIXME parse raw
+      @spec = {
+        :seconds => [0],
+        :minutes => [0],
+        :hours => [15],
+        :days => (1..31).to_a,
+        :days_of_week => [0,1,2,3,4,5,6],
+        :months => (1..12).to_a
+      }
+    end
 
-    {
-      :seconds => [0],
-      :minutes => [0],
-      :hours => [15],
-      :day => (1..31).to_a,
-      :day_of_week => [0,1,2,3,4,5,6],
-      :month => (1..12).to_a
-    }
-  end
+    def first year
+      month = @spec[:months].first
+      day = @spec[:days].first
+      hour = @spec[:hours].first
+      minute = @spec[:minutes].first
+      second = @spec[:seconds].first
+      s = "%d-%02d-%02d %02d:%02d:%02d" % [year,month,day,hour,minute,second]
+      Time.parse(s).to_i
+    end
 
-  def self.compute_spec_next_time spec, now
-    # now is either equal to, precedes one, or comes after all times in the spec
-    # if equal try again with now+1 second
-    # if preceding, the time it precedes is the answer
-    # if after all, use use first time in spec (with next years year) as the answer
+    def next now
+      year = now.year
+      # ? FIXME
+      nil
+    end
+
   end
 
   class Queue
@@ -46,8 +53,22 @@ module Cron
     end
 
     def insert! now, spec, payload
-      # get time with spec
-      # find first element with time greater and insert before
+      t = spec.next(now)
+      record = {
+        :timestamp => t,
+        :spec => spec,
+        :payload => payload
+      }
+
+      if @queue.empty?
+        @queue.push(record)
+      else
+        i=0
+        while @queue[i] && @queue[i][:timestamp] < record[:timestamp]
+          i += 1
+        end
+        @queue.insert(i, record)
+      end
     end
 
     def dequeue! now

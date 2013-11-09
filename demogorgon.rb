@@ -1,4 +1,6 @@
-require 'rb-inotify'
+INOTIFY_SUPPORT = false
+
+require 'rb-inotify' if INOTIFY_SUPPORT
 require 'socket'
 
 require './cron'
@@ -38,9 +40,10 @@ Options Flags
 class Demogorgon
 
   class Bug < StandardError; end
+  class InotifyNotSupported < StandardError; end
 
   def initialize &block
-    @notifier = INotify::Notifier.new
+    @notifier = INotify::Notifier.new if INOTIFY_SUPPORT
     @on_connect = {}
     @on_message = {}
     @tail_handlers = {}
@@ -67,7 +70,7 @@ class Demogorgon
       @on_connect.keys,
       @on_message.keys,
       @tail_handlers.keys,
-      [@notifier.to_io]
+      INOTIFY_SUPPORT ? [@notifier.to_io] : []
     ].flatten(1)
 
     now = Time.now
@@ -125,6 +128,7 @@ class Demogorgon
   end
 
   def monitor path, events, &block
+    raise InotifyNotSupported unless INOTIFY_SUPPORT
     @notifier.watch(path, *events) do |event|
       block.call(event.absolute_name, event.flags)
     end
@@ -155,6 +159,12 @@ class Demogorgon
 
   def on_terminate &block
     @term_handler = block
+  end
+
+  def on_schedule raw_spec, &block
+    spec = Cron::Spec.new raw_spec
+    now = Time.now
+    @cron.insert! now, spec, block
   end
 
 end
