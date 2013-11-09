@@ -8,17 +8,19 @@ Demogorgon.new do
     puts "stdin: #{msg}"
   end
 
-  # do this when something connects on port 12345, they are disconnected immediately
-  # FIXME you need to be able to talk back before disconnecting
-  on_connect 12345 do
-    puts "connect"
+  # do this for the first line of each connection on port 12346, then disconnect them
+  # use the tell action to send data to them before disconnecting
+  on_message 12346 do |msg, tell|
+    puts "message: #{msg}"
+    tell["yeah I heard"]
   end
 
-  # do this for the first line of each connection on port 12346
-  # FIXME you need to talk back before disconnecting
-  on_message 12346 do |msg|
-    puts "message: #{msg}"
+  # same as on_message but don't wait for any input, disconnect immediately afterward
+  on_connect 12345 do |tell|
+    puts "connect"
+    tell["hello world\n"]
   end
+
 
   # do this in response to inotify filesystem events, such as a touch command
   monitor 'some/file', [:all_events] do |filename, events|
