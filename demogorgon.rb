@@ -3,9 +3,41 @@ require 'socket'
 
 require './cron'
 
+=begin
+inotify flags for use with monitor (from rb-inotify documentation)
+
+:access : A file is accessed (that is, read).
+:attrib : A file's metadata is changed (e.g. permissions, timestamps, etc).
+:close_write : A file that was opened for writing is closed.
+:close_nowrite : A file that was not opened for writing is closed.
+:modify : A file is modified.
+:open : A file is opened.
+
+Directory-Specific Flags
+:moved_from : A file is moved out of the watched directory.
+:moved_to : A file is moved into the watched directory.
+:create : A file is created in the watched directory.
+:delete : A file is deleted in the watched directory.
+
+:delete_self : The watched file or directory itself is deleted.
+:move_self : The watched file or directory itself is moved.
+
+Helper Flags
+:close : Either :close_write or :close_nowrite is activated.
+:move : Either :moved_from or :moved_to is activated.
+:all_events : Any event above is activated.
+
+Options Flags
+:onlydir : Only watch the path if it's a directory.
+:dont_follow : Don't follow symlinks.
+:mask_add : Add these flags to the pre-existing flags for this path.
+:oneshot : Only send the event once, then shut down the watcher.
+:recursive : Recursively watch any subdirectories that are created.
+=end
+
 class Demogorgon
 
-  class UnknownFdClass < StandardError; end
+  class Bug < StandardError; end
 
   def initialize &block
     @notifier = INotify::Notifier.new
@@ -15,11 +47,17 @@ class Demogorgon
     @stdin_handler = nil
     @cron = Cron::Queue.new
     @int_handler = nil
+    @term_handler = nil
     @connections = {}
 
     Signal.trap('INT') do
       @int_handler.call() if @int_handler
       exit
+    end
+
+    Signal.trap('TERM') do
+      @term_handler.call() if @term_handler
+      exit(1)
     end
 
     self.instance_eval &block
@@ -81,7 +119,7 @@ class Demogorgon
     return :tail if @tail_handlers[io]
     return :monitor if @notifier.to_io == io
     return :message if @connections.include?(io)
-    raise UnknownFdClass
+    raise Bug, "unknown fd class"
   end
 
   def monitor path, events, &block
@@ -111,6 +149,10 @@ class Demogorgon
 
   def on_ctrl_c &block
     @int_handler = block
+  end
+
+  def on_terminate &block
+    @term_handler = block
   end
 
 end
