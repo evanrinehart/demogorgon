@@ -28,7 +28,7 @@ Demogorgon.new do
   end
 
   # do on a cron-like schedule (sec, min, hour, month, day, day-of-week)
-  on_schedule "0 0 */15 * * *" do |now|
+  on_schedule "0 */15 * * * *" do |now|
     puts "BING BONG"
   end
 
