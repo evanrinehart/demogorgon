@@ -89,6 +89,7 @@ module Cron
       year = now.year
       # ? FIXME
       nil
+      now.to_i
     end
 
   end
@@ -122,9 +123,11 @@ module Cron
       if @queue.empty?
         nil
       else
-        # compute spec next time
-        # reinsert spec and payload
-        # return payload
+        record = @queue.delete_at(0)
+        spec = record[:spec]
+        payload = record[:payload]
+        insert! now+1, spec, payload
+        payload
       end
     end
 
@@ -132,7 +135,7 @@ module Cron
       if @queue.empty?
         nil
       else
-        # return time of first thing - now
+        [0, @queue.first[:timestamp] - now.to_i].max
       end
     end
 
