@@ -1,3 +1,4 @@
+```ruby
 require "demogorgon"
 
 Demogorgon.new do
@@ -42,3 +43,4 @@ Demogorgon.new do
   end
 
 end
+```
