@@ -45,12 +45,12 @@ module Cron
       @queue = []
     end
 
-    def insert now, spec, payload
+    def insert! now, spec, payload
       # get time with spec
       # find first element with time greater and insert before
     end
 
-    def dequeue now
+    def dequeue! now
       if @queue.empty?
         nil
       else

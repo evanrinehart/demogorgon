@@ -1,9 +1,12 @@
 require "./demogorgon"
 
-exit
-
 Demogorgon.new do
-  barf
+
+
+  stdin do |msg|
+    puts msg.length
+  end
+
   # monitor files
   # listen for messages on port
   # listen for messages on stdin
