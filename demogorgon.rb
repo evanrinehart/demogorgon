@@ -14,6 +14,7 @@ class Demogorgon
     @stdin_handler = nil
     @cron = Cron::Queue.new
     @int_handler = nil
+    @connections = []
 
     Signal.trap('INT') do
       @int_handler.call() if @int_handler
@@ -42,11 +43,16 @@ class Demogorgon
         ready_set[0].each do |io|
           case fd_class(io)
             when :stdin then @stdin_handler[io.gets || ''] if @stdin_handler
-            when :message
+            when :connect_for_message
               s = io.accept
-              msg = s.gets || ''
-              @on_message[io][msg, lambda{|x| s.write(x) rescue nil}]
-              s.close
+              @connections[s] = @on_message[io]
+              fds.push(s)
+            when :message
+              msg = io.gets || ''
+              @connections[io][msg, lambda{|x| s.write(x) rescue nil}]
+              @connections.delete(io)
+              io.close
+              fds.delete(io)
             when :connect
               s = io.accept
               s.close
@@ -62,9 +68,10 @@ class Demogorgon
   def fd_class io
     return :stdin if io == STDIN
     return :connect if @on_connect[io]
-    return :message if @on_message[io]
+    return :connect_for_message if @on_message[io]
     return :tail if @tail_handlers[io]
     return :monitor if @notifier.to_io == io
+    return :message if @connections.include?(io)
     raise UnknownFdClass
   end
 
