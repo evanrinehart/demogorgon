@@ -83,21 +83,21 @@ class Demogorgon
           case fd_class(io)
             when :stdin
               msg = io.gets
-              @stdin_handler[io.gets || ''] if msg && @stdin_handler
+              @stdin_handler[msg.chomp] if msg && @stdin_handler
             when :connect_for_message
               s = io.accept
               @connections[s] = @on_message[io]
               fds.push(s)
             when :message
               msg = io.gets || ''
-              @connections[io][msg, lambda{|x| s.write(x) rescue nil}]
+              @connections[io][msg.chomp, lambda{|x| io.write(x) rescue nil}]
               @connections.delete(io)
               io.close
               fds.delete(io)
             when :connect
               s = io.accept
+              @on_connect[io].call(lambda{|x| s.write(x) rescue nil})
               s.close
-              @on_connect[io].call()
             when :monitor then @notifier.process
             when :tail
               msg = io.gets
@@ -106,7 +106,7 @@ class Demogorgon
                 @tail_handlers.delete(io)
                 fds.delete(io)
               else
-                @tail_handlers[io][msg]
+                @tail_handlers[io][msg.chomp]
               end
           end
         end
