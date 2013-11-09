@@ -81,7 +81,9 @@ class Demogorgon
       else
         ready_set[0].each do |io|
           case fd_class(io)
-            when :stdin then @stdin_handler[io.gets || ''] if @stdin_handler
+            when :stdin
+              msg = io.gets
+              @stdin_handler[io.gets || ''] if msg && @stdin_handler
             when :connect_for_message
               s = io.accept
               @connections[s] = @on_message[io]
