@@ -1,4 +1,5 @@
 require 'rb-inotify'
+require 'socket'
 
 require './cron'
 
@@ -14,7 +15,7 @@ class Demogorgon
     @stdin_handler = nil
     @cron = Cron::Queue.new
     @int_handler = nil
-    @connections = []
+    @connections = {}
 
     Signal.trap('INT') do
       @int_handler.call() if @int_handler
@@ -58,7 +59,15 @@ class Demogorgon
               s.close
               @on_connect[io].call()
             when :monitor then @notifier.process
-            when :tail then @tail_handlers[io][io.gets || '']
+            when :tail
+              msg = io.gets
+              if msg.nil?
+                io.close
+                @tail_handlers.delete(io)
+                fds.delete(io)
+              else
+                @tail_handlers[io][msg]
+              end
           end
         end
       end
@@ -76,7 +85,9 @@ class Demogorgon
   end
 
   def monitor path, events, &block
-    @notifier.watch(path, *events, &block)
+    @notifier.watch(path, *events) do |event|
+      block.call(event.absolute_name, event.flags)
+    end
   end
 
   def on_connect port, &block
@@ -93,7 +104,7 @@ class Demogorgon
     @stdin_handler = block
   end
 
-  def tail_of_file path, &block
+  def each_line_in_file path, &block
     f = File.open(path, 'r')
     @tail_handlers[f] = block
   end
