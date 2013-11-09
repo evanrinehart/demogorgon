@@ -1,4 +1,6 @@
-require "demogorgon"
+require "./demogorgon"
+
+exit
 
 Demogorgon.new do
   barf
