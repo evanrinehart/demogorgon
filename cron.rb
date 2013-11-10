@@ -6,7 +6,6 @@ module Cron
   class Spec
 
     class InvalidSpec < StandardError; end
-    class NextIsOnLeapDay < StandardError; end
 
     def parse_section min, max, raw, special_case=nil
       all = (min .. max).to_a
