@@ -6,36 +6,36 @@ module Cron
 
     class InvalidSpec < StandardError; end
 
-    def parse_section min, max, raw
+    def parse_section min, max, raw, special_case=nil
       all = (min .. max).to_a
 
+      if raw == '*'
+        return special_case ? nil : all
+      end
+
       raw.split(',').map do |x|
-        if x == '*'
-          all
+        div = x[/^\*\/(\d+)$/, 1]
+        if div
+          all.select{|x| x % div.to_i == 0}
         else
-          div = x[/^\*\/(\d+)$/, 1]
-          if div
-            all.select{|x| x % div.to_i == 0}
+          match = x.match /^(\d+)-(\d+)$/
+          if match
+            a = match[1].to_i
+            b = match[2].to_i
+            unless a>=min && a<=max && b>=min && b<=max
+              raise InvalidSpec, "out of range"
+            end
+            (a .. b).to_a
           else
-            match = x.match /^(\d+)-(\d+)$/
+            match = x.match /^(\d+)$/
             if match
               a = match[1].to_i
-              b = match[2].to_i
-              unless a>=min && a<=max && b>=min && b<=max
+              unless a>=min && a<=max
                 raise InvalidSpec, "out of range"
               end
-              (a .. b).to_a
+              [a]
             else
-              match = x.match /^(\d+)$/
-              if match
-                a = match[1].to_i
-                unless a>=min && a<=max
-                  raise InvalidSpec, "out of range"
-                end
-                [a]
-              else
-                raise InvalidSpec, "unable to parse expression"
-              end
+              raise InvalidSpec, "unable to parse expression"
             end
           end
         end
@@ -49,14 +49,14 @@ module Cron
       parts = raw.split(' ')
       raise InvalidSpec, "you must have six fields" if parts.length != 6
 
-      days_of_week = parse_section(0,7,parts[5])
+      days_of_week = parse_section(0,7,parts[5], :special_case)
       months = parse_section(1, 12, parts[4])
-      days = parse_section(1, 31, parts[3])
+      days = parse_section(1, 31, parts[3], :special_case)
       hours = parse_section(0, 23, parts[2])
       minutes = parse_section(0, 59, parts[1])
       seconds = parse_section(0, 59, parts[0])
 
-      if days_of_week.delete(7)
+      if days_of_week && days_of_week.delete(7)
         days_of_week.delete(0)
         days_of_week.insert 0, 0
       end
@@ -86,10 +86,51 @@ module Cron
     end
 
     def next now
-      year = now.year
-      # ? FIXME
-      nil
-      now.to_i
+      next_in_set = lambda do |v, set|
+        ans = set.find{|x| v <= x}
+        if ans
+          [ans, 0]
+        else
+          [set.first, 1]
+        end
+      end
+
+      second, carry = next_in_set[now.sec, @spec[:seconds]]
+      minute, carry = next_in_set[now.min+carry, @spec[:minutes]]
+      hour, carry = next_in_set[now.hour+carry, @spec[:hours]]
+      month1, carry = next_in_set[now.month, @spec[:months]]
+      year1 = now.year + carry
+      if now.month==month1 && now.year==year1
+        days1 = calc_days(month1, year1)
+        day1, carry = next_in_set[now.day, days1]
+        if carry == 1 # year1 month1 and day1 are invalid results try again
+          month, carry = next_in_set[now.month+1, @spec[:months]]
+          year = now.year + carry
+          days = calc_days(month, year)
+          day = days.first
+        else
+          year = year1
+          month = month1
+          day = day1
+        end
+      else
+        year = year1
+        month = month1
+        days = calc_days(month, year)
+        day = days.first
+      end
+
+      s = "%d-%02d-%02d %02d:%02d:%02d" % [year,month,day,hour,minute,second]
+      Time.parse(s).to_i
+    end
+
+    def calc_days month, year
+      # nil nil means 1-31
+      # nil set means all days where day of week in set
+      # set nil means all days where day of month in set
+      # set set means all days where day or week OR day of month in set
+      # FIXME
+      (1..31).to_a
     end
 
   end
