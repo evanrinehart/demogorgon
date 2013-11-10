@@ -1,4 +1,5 @@
 require 'time'
+require 'date'
 
 module Cron
 
@@ -85,6 +86,8 @@ module Cron
       Time.parse(s).to_i
     end
 
+    # return the next time an event will occur according to this spec
+    # returns nil if spec denotes an empty set of event times (Feb 31)
     def next now
       next_in_set = lambda do |v, set|
         ans = set.find{|x| v <= x}
@@ -120,17 +123,32 @@ module Cron
         day = days.first
       end
 
+      return nil if day.nil?
+
       s = "%d-%02d-%02d %02d:%02d:%02d" % [year,month,day,hour,minute,second]
       Time.parse(s).to_i
     end
 
     def calc_days month, year
-      # nil nil means 1-31
-      # nil set means all days where day of week in set
-      # set nil means all days where day of month in set
-      # set set means all days where day or week OR day of month in set
-      # FIXME
-      (1..31).to_a
+      all = []
+      d = Date.parse("%d-%02d-01" % [year,month])
+      while d.month == month
+        all.push(d)
+        d = d + 1
+      end
+
+      days = @spec[:days]
+      days_of_week = @spec[:days_of_week]
+      set = if days_of_week && days.nil?
+        all.select{|d| days_of_week.include?(d.wday)}
+      elsif days_of_week.nil? && days
+        all.select{|d| days.include?(d.day)}
+      elsif days_of_week && days
+        all.select{|d| days_of_week.include?(d.wday) || days.include?(d.day)}
+      else
+        all
+      end
+      set.map{|d| d.day}
     end
 
   end
@@ -143,6 +161,9 @@ module Cron
 
     def insert! now, spec, payload
       t = spec.next(now)
+
+      return if t.nil? # impossible spec, event never occurs
+
       record = {
         :timestamp => t,
         :spec => spec,
