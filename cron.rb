@@ -6,6 +6,7 @@ module Cron
   class Spec
 
     class InvalidSpec < StandardError; end
+    class NextIsOnLeapDay < StandardError; end
 
     def parse_section min, max, raw, special_case=nil
       all = (min .. max).to_a
@@ -123,10 +124,16 @@ module Cron
         day = days.first
       end
 
-      return nil if day.nil?
+      if day.nil? && @spec[:months].include?(2) && @spec[:days].include?(29)
+        # then nil is not the correct response, there will be some leap day at some point
+        raise NextIsOnLeapDay
+      elsif day.nil?
+        nil
+      else
+        s = "%d-%02d-%02d %02d:%02d:%02d" % [year,month,day,hour,minute,second]
+        Time.parse(s).to_i
+      end
 
-      s = "%d-%02d-%02d %02d:%02d:%02d" % [year,month,day,hour,minute,second]
-      Time.parse(s).to_i
     end
 
     def calc_days month, year
@@ -135,6 +142,10 @@ module Cron
       while d.month == month
         all.push(d)
         d = d + 1
+      end
+
+      if month==2 && Date.new(year).leap?
+        all.push(Date.parse("#{year}-02-29"))
       end
 
       days = @spec[:days]
