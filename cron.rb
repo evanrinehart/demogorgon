@@ -126,7 +126,10 @@ module Cron
 
       if day.nil? && @spec[:months].include?(2) && @spec[:days].include?(29)
         # then nil is not the correct response, there will be some leap day at some point
-        raise NextIsOnLeapDay
+        day = 29
+        leap_year = next_leap_year(year)
+        s = "%d-%02d-%02d %02d:%02d:%02d" % [leap_year,month,day,hour,minute,second]
+        Time.parse(s).to_i
       elsif day.nil?
         nil
       else
@@ -134,6 +137,14 @@ module Cron
         Time.parse(s).to_i
       end
 
+    end
+
+    def next_leap_year starting_year
+      y = Date.new(starting_year)
+      until y.leap?
+        y = Date.new(y.year + 1)
+      end
+      y.year
     end
 
     def calc_days month, year
