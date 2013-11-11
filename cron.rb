@@ -6,6 +6,8 @@ module Cron
   class Spec
 
     class InvalidSpec < StandardError; end
+    class DontUseThis < StandardError; end
+    class Busted < StandardError; end
 
     def parse_section min, max, raw, special_case=nil
       all = (min .. max).to_a
@@ -70,6 +72,8 @@ module Cron
         :days_of_week => days_of_week,
         :months => months
       }
+
+      @empty = check_for_inconsistent_dates months, days
     end
 
     def spec
@@ -86,90 +90,131 @@ module Cron
       Time.parse(s).to_i
     end
 
+    def check_for_inconsistent_dates months, days
+      return false if days.nil?
+
+      impossibles = [
+        [2, 30],
+        [2, 31],
+        [4, 31],
+        [6, 31],
+        [9, 31],
+        [11, 31]
+      ]
+
+      months.each do |month|
+        days.each do |day|
+          if impossibles.include? [month, day]
+            return true
+          end
+        end
+      end
+
+      return false
+    end
+
+    def next_date start_date
+      raise DontUseThis, "empty spec has no next date" if @empty
+
+      d = start_date
+      while !day_in_spec(d)
+        d += 1
+      end
+      d
+    end
+
+    def next_time start_time
+      h1 = start_time.hour
+      m1 = start_time.min
+      s1 = start_time.sec
+      t1 = h1*3600 + m1*60 + s1
+      h2, m2, s2 = last_time
+      t2 = h2*3600 + m2*60 + s2
+      return nil if t1 > t2
+      h3 = set_search @spec[:hours], h1
+      if h3 > h1
+        m3 = @spec[:minutes].first
+        s3 = @spec[:seconds].first
+      else
+        m3 = set_search @spec[:minutes], m1
+        if m3.nil?
+          h3 = set_search @spec[:hours], h1+1
+          m3 = @spec[:minutes].first
+          s3 = @spec[:seconds].first
+        elsif m3 > m1
+          s3 = @spec[:seconds].first
+        else
+          s3 = set_search @spec[:seconds], s1
+          if s3.nil?
+            m3 = set_search @spec[:minutes], m1+1
+            if m3.nil?
+              h3 = set_search @spec[:hours], h1+1
+              m3 = @spec[:minutes].first
+              s3 = @spec[:seconds].first
+            elsif m3 > m1
+              s3 = @spec[:seconds].first
+            else
+              raise Busted # m3 can't be equal to m1 at this point
+            end
+          else
+            # end of algorithm
+          end
+        end
+      end
+      [h3, m3, s3]
+    end
+
+    def set_search set, start_value
+      set.find{|x| start_value <= x}
+    end
+
+    def first_time
+      [@spec[:hours].first, @spec[:minutes].first, @spec[:seconds].first]
+    end
+
+    def last_time
+      [@spec[:hours].last, @spec[:minutes].last, @spec[:seconds].last]
+    end
+
+    def day_in_spec date
+      if !@spec[:months].include?(date.month)
+        false
+      else
+        if @spec[:days].nil? && @spec[:days_of_week].nil?
+          true
+        elsif @spec[:days_of_week].nil? #days are specified
+          @spec[:days].include?(date.day)
+        elsif @spec[:days].nil? # days of week specified
+          @spec[:days_of_week].include?(date.wday)
+        else # both specified
+          @spec[:days].include?(date.day) || @spec[:days_of_week].include?(date.wday)
+        end
+      end
+    end
+
     # return the next time an event will occur according to this spec
     # returns nil if spec denotes an empty set of event times (Feb 31)
     def next now
-      next_in_set = lambda do |v, set|
-        ans = set.find{|x| v <= x}
-        if ans
-          [ans, 0]
-        else
-          [set.first, 1]
-        end
-      end
+      return nil if @empty
 
-      second, carry = next_in_set[now.sec, @spec[:seconds]]
-      minute, carry = next_in_set[now.min+carry, @spec[:minutes]]
-      hour, carry = next_in_set[now.hour+carry, @spec[:hours]]
-      month1, carry = next_in_set[now.month, @spec[:months]]
-      year1 = now.year + carry
-      if now.month==month1 && now.year==year1
-        days1 = calc_days(month1, year1)
-        day1, carry = next_in_set[now.day, days1]
-        if carry == 1 # year1 month1 and day1 are invalid results try again
-          month, carry = next_in_set[now.month+1, @spec[:months]]
-          year = now.year + carry
-          days = calc_days(month, year)
-          day = days.first
-        else
-          year = year1
-          month = month1
-          day = day1
+      today = Date.parse(now.to_s)
+      tomorrow = today + 1
+      d = next_date today
+      if d == today
+        hour, minute, second = next_time now
+        if hour.nil?
+          d = next_date tomorrow
+          hour, minute, second = first_time
         end
       else
-        year = year1
-        month = month1
-        days = calc_days(month, year)
-        day = days.first
+        hour, minute, second = first_time
       end
 
-      if day.nil? && @spec[:months].include?(2) && @spec[:days].include?(29)
-        # then nil is not the correct response, there will be some leap day at some point
-        day = 29
-        leap_year = next_leap_year(year)
-        s = "%d-%02d-%02d %02d:%02d:%02d" % [leap_year,month,day,hour,minute,second]
-        Time.parse(s).to_i
-      elsif day.nil?
-        nil
-      else
-        s = "%d-%02d-%02d %02d:%02d:%02d" % [year,month,day,hour,minute,second]
-        Time.parse(s).to_i
-      end
-
-    end
-
-    def next_leap_year starting_year
-      y = Date.new(starting_year)
-      until y.leap?
-        y = Date.new(y.year + 1)
-      end
-      y.year
-    end
-
-    def calc_days month, year
-      all = []
-      d = Date.parse("%d-%02d-01" % [year,month])
-      while d.month == month
-        all.push(d)
-        d = d + 1
-      end
-
-      if month==2 && Date.new(year).leap?
-        all.push(Date.parse("#{year}-02-29"))
-      end
-
-      days = @spec[:days]
-      days_of_week = @spec[:days_of_week]
-      set = if days_of_week && days.nil?
-        all.select{|d| days_of_week.include?(d.wday)}
-      elsif days_of_week.nil? && days
-        all.select{|d| days.include?(d.day)}
-      elsif days_of_week && days
-        all.select{|d| days_of_week.include?(d.wday) || days.include?(d.day)}
-      else
-        all
-      end
-      set.map{|d| d.day}
+      s = "%d-%02d-%02d %02d:%02d:%02d" % [
+        d.year, d.month, d.day,
+        hour, minute, second
+      ]
+      return Time.parse(s).to_i
     end
 
   end
