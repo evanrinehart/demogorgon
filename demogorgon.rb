@@ -165,7 +165,6 @@ class Demogorgon
     spec = Cron::Spec.new raw_spec
     now = Time.now
     @cron.insert! now, spec, block
-puts @cron.inspect
   end
 
 end
