@@ -3,7 +3,7 @@ require 'json'
 class Acid
 
   class BadLogFile < StandardError; end
-  class UnknownLogEntry < StandardError; end
+  class UnknownUpdateMethod < StandardError; end
 
   def initialize &block
     @methods = {}
@@ -84,7 +84,7 @@ class Acid
         STDERR.puts "corrupt line in log, recovering o_O"
         return state
       rescue NoMethodError
-        raise UnknownLogEntry
+        raise UnknownUpdateMethod, "I don't have a way to use update method #{name.inspect}"
       end
     end
     state
