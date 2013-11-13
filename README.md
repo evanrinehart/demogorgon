@@ -1,3 +1,6 @@
+The following program waits for various events to occur, then executes the
+callback blocks specified for each one.
+
 ```ruby
 require "demogorgon"
 
@@ -12,7 +15,7 @@ Demogorgon.new do
   # use the tell action to send data to them before disconnecting
   on_message 12346 do |msg, tell|
     puts "message: #{msg}"
-    tell["yeah I heard"]
+    tell["yeah I heard\n"]
   end
 
   # same as on_message but don't wait for any input, disconnect immediately afterward
@@ -50,3 +53,40 @@ Demogorgon.new do
 
 end
 ```
+
+Demogorgon can be equipped with an ACID memory which will survive crashes and
+restarts.
+
+```ruby
+require "demogorgon"
+require "acid"
+
+acid = Acid.new do
+
+  log_file "state"
+
+  init do
+    0
+  end
+
+  view :show do |s|
+    s.to_s
+  end
+
+  method :bump! do |s|
+    s + 1
+  end
+
+end
+
+Demogorgon.new do
+
+  on_connect 12345 do |tell|
+    tell[acid.show + "\n"]
+    acid.bump!
+  end
+
+end
+```
+
+
