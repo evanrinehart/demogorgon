@@ -73,7 +73,7 @@ acid = Acid.new do
     s.to_s
   end
 
-  method :bump! do |s|
+  update :bump! do |s|
     s + 1
   end
 
