@@ -6,6 +6,11 @@ require "demogorgon"
 
 Demogorgon.new do
 
+  # executes after everything is setup but before any other event
+  on_boot do
+    puts "demon online"
+  end
+
   # do this for each line of standard input, nothing will happen at EOF
   stdin do |msg|
     puts "stdin: #{msg}"
