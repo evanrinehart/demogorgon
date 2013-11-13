@@ -7,6 +7,8 @@ class Acid
 
   def initialize &block
     @methods = {}
+    @read = lambda{|x| x}
+    @show = lambda{|x| x}
 
     self.instance_eval &block
 
@@ -28,6 +30,14 @@ class Acid
 
   def init &block
     define '_init', &block
+  end
+
+  def serialize &block
+    @show = block
+  end
+
+  def deserialize &block
+    @read = block
   end
 
   def checkpoint
@@ -70,14 +80,14 @@ class Acid
 
     begin
       if line0
-        state = JSON.parse(line0)['checkpoint']
+        state = @read[JSON.parse(line0)['checkpoint']]
       else
         log_file.close
         state = _init
         _checkpoint log_path, state
         return state
       end
-    rescue JSON::ParserError
+    rescue JSON::ParserError, Acid::LoaderError
       raise LoaderError, "initial record in log file is busted"
     end
 
@@ -102,7 +112,8 @@ class Acid
 
   def _checkpoint log_path, state
     file = File.open(log_path+'.paranoid', 'w')
-    file.puts(JSON.generate({'checkpoint' => state}))
+    image = JSON.generate({'checkpoint' => @show[state]})
+    file.puts(image)
     file.close
     File.rename(log_path+'.paranoid', log_path)
   end
