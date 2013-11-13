@@ -53,7 +53,7 @@ class Acid
     end
   end
 
-  def method name, &block
+  def update name, &block
     define '_'+name.to_s do |state, *args|
       block[state, *args]
     end
