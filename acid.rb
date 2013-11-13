@@ -1,9 +1,9 @@
 require 'json'
+require 'fileutils'
 
 class Acid
 
-  class BadLogFile < StandardError; end
-  class UnknownUpdateMethod < StandardError; end
+  class LoaderError < StandardError; end
 
   def initialize &block
     @methods = {}
@@ -54,7 +54,7 @@ class Acid
   end
 
   def method_missing name, *args
-    raise NoMethodError unless @methods[name.to_s]
+    raise NoMethodError, name unless @methods[name.to_s]
     @methods[name.to_s][*args]
   end
 
@@ -68,11 +68,14 @@ class Acid
     log_file = File.open(log_path)
     line0 = log_file.gets
 
-    raise BadLogFile if line0.nil?
     begin
-      state = JSON.parse(line0)['checkpoint']
+      if line0
+        state = JSON.parse(line0)['checkpoint']
+      else
+        state = _init
+      end
     rescue JSON::ParserError
-      raise BadLogFile
+      raise LoaderError, "initial record in log file is busted"
     end
 
     log_file.lines do |line|
@@ -80,11 +83,13 @@ class Acid
         name, *args = JSON.parse(line)
         state = self.send('_'+name, state, *args)
       rescue JSON::ParserError
+        STDERR.puts "*** WARNING: corrupt line in log, recovering o_O ***"
+        log_file.close
+        FileUtils.copy log_path, log_path+'.original'
         _checkpoint log_path, state
-        STDERR.puts "corrupt line in log, recovering o_O"
         return state
       rescue NoMethodError
-        raise UnknownUpdateMethod, "I don't have a way to use update method #{name.inspect}"
+        raise LoaderError, "I don't have a way to use update method #{name.inspect}"
       end
     end
     state
