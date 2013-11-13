@@ -72,7 +72,10 @@ class Acid
       if line0
         state = JSON.parse(line0)['checkpoint']
       else
+        log_file.close
         state = _init
+        _checkpoint log_path, state
+        return state
       end
     rescue JSON::ParserError
       raise LoaderError, "initial record in log file is busted"
@@ -89,9 +92,11 @@ class Acid
         _checkpoint log_path, state
         return state
       rescue NoMethodError
+        log_file.close
         raise LoaderError, "I don't have a way to use update method #{name.inspect}"
       end
     end
+    log_file.close
     state
   end
 
