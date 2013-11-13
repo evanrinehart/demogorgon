@@ -9,6 +9,7 @@ class Acid
     @methods = {}
     @read = lambda{|x| x}
     @show = lambda{|x| x}
+    @init = lambda{ nil }
 
     self.instance_eval &block
 
@@ -16,7 +17,7 @@ class Acid
       @state = load_log @log_path
     rescue Errno::ENOENT
       log_file = File.open(@log_path, 'w')
-      @state = self._init
+      @state = @init[]
       log_file.puts(JSON.generate({'checkpoint' => @state}))
       log_file.close
     end
@@ -29,7 +30,7 @@ class Acid
   end
 
   def init &block
-    define '_init', &block
+    @init = block
   end
 
   def serialize &block
@@ -83,7 +84,7 @@ class Acid
         state = @read[JSON.parse(line0)['checkpoint']]
       else
         log_file.close
-        state = _init
+        state = @init[]
         _checkpoint log_path, state
         return state
       end
