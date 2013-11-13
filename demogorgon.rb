@@ -51,6 +51,7 @@ class Demogorgon
     @cron = Cron::Queue.new
     @int_handler = nil
     @term_handler = nil
+    @boot_action = lambda{}
     @connections = {}
 
     Signal.trap('INT') do
@@ -74,6 +75,8 @@ class Demogorgon
     ].flatten(1)
 
     now = Time.now
+
+    @boot_action.call
 
     loop do
       ready_set = IO.select(fds, [], [], @cron.eta(now))
@@ -132,6 +135,10 @@ class Demogorgon
     @notifier.watch(path, *events) do |event|
       block.call(event.absolute_name, event.flags)
     end
+  end
+
+  def on_boot &block
+    @boot_action = block
   end
 
   def on_connect port, &block
