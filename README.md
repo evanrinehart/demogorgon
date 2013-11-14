@@ -66,9 +66,7 @@ restarts.
 require "demogorgon"
 require "acid"
 
-acid = Acid.new do
-
-  log_file "state"
+acid = Acid.new "state.log" do
 
   init do
     0
@@ -82,6 +80,10 @@ acid = Acid.new do
     s + 1
   end
 
+  update :set! do |s, n|
+    n
+  end
+
 end
 
 Demogorgon.new do
@@ -89,6 +91,10 @@ Demogorgon.new do
   on_connect 12345 do |tell|
     tell[acid.show + "\n"]
     acid.bump!
+  end
+
+  stdin do |msg|
+    acid.set! msg.to_i
   end
 
 end

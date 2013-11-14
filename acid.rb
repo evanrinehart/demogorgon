@@ -5,11 +5,12 @@ class Acid
 
   class LoaderError < StandardError; end
 
-  def initialize &block
+  def initialize log_path, &block
     @methods = {}
     @read = lambda{|x| x}
     @show = lambda{|x| x}
     @init = lambda{ nil }
+    @log_path = log_path
 
     self.instance_eval &block
 
@@ -27,10 +28,6 @@ class Acid
 
   def log_file path
     @log_path = path
-  end
-
-  def init &block
-    @init = block
   end
 
   def serialize &block
