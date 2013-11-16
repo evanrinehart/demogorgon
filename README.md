@@ -29,6 +29,20 @@ Demogorgon.new do
     tell["hello world\n"]
   end
 
+  # an extended two-way session
+  dialog 12347, {
+    :connect => lambda do |id, tell, kick|
+      puts "#{id} connected"
+      tell["hello\n"]
+    end,
+    :message => lambda do |id, msg|
+      puts "#{id}: #{msg}"
+    end,
+    :disconnect => lambda do |id|
+      puts "#{id} disconnect"
+    end
+  }
+
   # do this in response to inotify filesystem events, such as a touch command
   monitor 'some/file', [:all_events] do |filename, events|
     puts "#{filename} #{events.inspect}"
