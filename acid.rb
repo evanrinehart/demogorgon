@@ -26,6 +26,10 @@ class Acid
     @log_file = File.open(@log_path, 'a')
   end
 
+  def init &block
+    @init = block
+  end
+
   def log_file path
     @log_path = path
   end
@@ -62,7 +66,7 @@ class Acid
   end
 
   def method_missing name, *args
-    raise NoMethodError, name unless @methods[name.to_s]
+    raise NoMethodError, name.to_s unless @methods[name.to_s]
     @methods[name.to_s][*args]
   end
 

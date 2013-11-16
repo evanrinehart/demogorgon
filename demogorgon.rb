@@ -53,6 +53,8 @@ class Demogorgon
     @term_handler = nil
     @boot_action = lambda{}
     @connections = {}
+    @dialog_servers = {}
+    @dialogs = {}
 
     Signal.trap('INT') do
       @int_handler.call() if @int_handler
@@ -71,6 +73,7 @@ class Demogorgon
       @on_connect.keys,
       @on_message.keys,
       @tail_handlers.keys,
+      @dialog_servers.keys,
       INOTIFY_SUPPORT ? [@notifier.to_io] : []
     ].flatten(1)
 
@@ -104,6 +107,25 @@ class Demogorgon
               s = io.accept
               @on_connect[io].call(lambda{|x| s.write(x) rescue nil})
               s.close
+            when :dialog_connect
+              s = io.accept
+              fds.push(s)
+              @dialogs[s] = @dialog_servers[io]
+              @dialogs[s][:connect][
+                s.to_i,
+                lambda{|msg| s.write(msg) rescue nil},
+                lambda{ s.close }
+              ]
+            when :dialog
+              msg = io.gets
+              if msg.nil?
+                @dialogs[io][:disconnect][io.to_i]
+                @dialogs.delete(io)
+                fds.delete(io)
+                io.close
+              else
+                @dialogs[io][:message][io.to_i, msg.chomp]
+              end
             when :monitor then @notifier.process
             when :tail
               msg = io.gets
@@ -125,8 +147,10 @@ class Demogorgon
     return :connect if @on_connect[io]
     return :connect_for_message if @on_message[io]
     return :tail if @tail_handlers[io]
-    return :monitor if @notifier.to_io == io
+    return :monitor if INOTIFY_SUPPORT && @notifier.to_io == io
     return :message if @connections.include?(io)
+    return :dialog_connect if @dialog_servers.include?(io)
+    return :dialog if @dialogs.include?(io)
     raise Bug, "unknown fd class"
   end
 
@@ -172,6 +196,11 @@ class Demogorgon
     spec = Cron::Spec.new raw_spec
     now = Time.now
     @cron.insert! now, spec, block
+  end
+
+  def dialog port, handlers
+    server = TCPServer.new port
+    @dialog_servers[server] = handlers
   end
 
 end
