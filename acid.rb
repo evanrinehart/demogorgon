@@ -19,7 +19,7 @@ class Acid
     rescue Errno::ENOENT
       log_file = File.open(@log_path, 'w')
       @state = @init[]
-      log_file.puts(JSON.generate({'checkpoint' => @state}))
+      log_file.puts(JSON.generate({:checkpoint => @state}))
       log_file.close
     end
 
@@ -83,7 +83,7 @@ class Acid
 
     begin
       if line0
-        state = @read[JSON.parse(line0, :symbolize_names => true)['checkpoint']]
+        state = @read[JSON.parse(line0, :symbolize_names => true)[:checkpoint]]
       else
         log_file.close
         state = @init[]
@@ -97,7 +97,7 @@ class Acid
     log_file.lines do |line|
       begin
         name, *args = JSON.parse(line)
-        state = self.send('_'+name, state, *args)
+        state, retval = self.send('_'+name, state, *args)
       rescue JSON::ParserError
         STDERR.puts "*** WARNING: corrupt line in log, recovering o_O ***"
         log_file.close
@@ -115,7 +115,7 @@ class Acid
 
   def _checkpoint log_path, state
     file = File.open(log_path+'.paranoid', 'w')
-    image = JSON.generate({'checkpoint' => @show[state]})
+    image = JSON.generate({:checkpoint => @show[state]})
     file.puts(image)
     file.close
     File.rename(log_path+'.paranoid', log_path)
