@@ -61,7 +61,33 @@ class Acid
 
     define name.to_s do |*args|
       @log_file.puts(JSON.generate([name] + args))
-      @state, retval = block[@state, *args]
+      @state = block[@state, *args]
+      nil
+    end
+  end
+
+  def update_m name, &block
+    define '_'+name.to_s do |state, *args|
+      block[state, *args]
+      state
+    end
+
+    define name.to_s do |*args|
+      @log_file.puts(JSON.generate([name] + args))
+      block[@state, *args]
+      nil
+    end
+  end
+
+  def update_mr name, &block
+    define '_'+name.to_s do |state, *args|
+      block[state, *args]
+      state
+    end
+
+    define name.to_s do |*args|
+      @log_file.puts(JSON.generate([name] + args))
+      retval = block[@state, *args]
       retval
     end
   end

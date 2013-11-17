@@ -5,38 +5,6 @@ require 'socket'
 
 require './cron'
 
-=begin
-inotify flags for use with monitor (from rb-inotify documentation)
-
-:access : A file is accessed (that is, read).
-:attrib : A file's metadata is changed (e.g. permissions, timestamps, etc).
-:close_write : A file that was opened for writing is closed.
-:close_nowrite : A file that was not opened for writing is closed.
-:modify : A file is modified.
-:open : A file is opened.
-
-Directory-Specific Flags
-:moved_from : A file is moved out of the watched directory.
-:moved_to : A file is moved into the watched directory.
-:create : A file is created in the watched directory.
-:delete : A file is deleted in the watched directory.
-
-:delete_self : The watched file or directory itself is deleted.
-:move_self : The watched file or directory itself is moved.
-
-Helper Flags
-:close : Either :close_write or :close_nowrite is activated.
-:move : Either :moved_from or :moved_to is activated.
-:all_events : Any event above is activated.
-
-Options Flags
-:onlydir : Only watch the path if it's a directory.
-:dont_follow : Don't follow symlinks.
-:mask_add : Add these flags to the pre-existing flags for this path.
-:oneshot : Only send the event once, then shut down the watcher.
-:recursive : Recursively watch any subdirectories that are created.
-=end
-
 class Demogorgon
 
   class Bug < StandardError; end
@@ -55,6 +23,7 @@ class Demogorgon
     @connections = {}
     @dialog_servers = {}
     @dialogs = {}
+    @adhoc_events = AdhocQueue.new
 
     Signal.trap('INT') do
       @int_handler.call() if @int_handler
@@ -66,7 +35,12 @@ class Demogorgon
       exit(1)
     end
 
-    self.instance_eval &block
+    at = lambda do |time, &block|
+     ts = time.utc
+     @adhoc_events.insert time, block
+    end
+
+    self.instance_exec at, &block
 
     fds = [
       [STDIN],
@@ -82,11 +56,31 @@ class Demogorgon
     @boot_action.call
 
     loop do
-      ready_set = IO.select(fds, [], [], @cron.eta(now))
+      eta1 = @cron.eta(now)
+      eta2 = @adhoc_events.eta(now)
+
+      eta = if eta1 && eta2
+        eta1 < eta2 ? eta1 : eta2
+      elsif eta1
+        eta1
+      elsif eta2
+        eta2
+      else
+        nil
+      end
+
+      ready_set = IO.select(fds, [], [], eta)
       now = Time.now
       if ready_set.nil?
         event = @cron.dequeue!(now)
-        event.call() if event
+        if event
+          event.call()
+        else
+          etime, event = @adhoc_events.dequeue!(now)
+          if event
+            event.call(etime)
+          end
+        end
       else
         ready_set[0].each do |io|
           case fd_class(io)
@@ -201,6 +195,47 @@ class Demogorgon
   def dialog port, handlers
     server = TCPServer.new port
     @dialog_servers[server] = handlers
+  end
+
+  class AdhocQueue
+    def initialize
+      @queue = []
+    end
+
+    def insert time, payload
+      rec = {
+        :time => time,
+        :payload => payload
+      }
+
+      pred = @queue.index{|x| x[:time] > time}
+      if pred.nil?
+        @queue.push rec
+      else
+        @queue.insert pred, rec
+      end
+    end
+
+    def dequeue! now
+      if @queue.empty?
+        nil
+      elsif now < @queue.first[:time]
+        nil
+      else
+        rec = @queue.delete_at(0)
+        [rec[:time], rec[:payload]]
+      end
+    end
+
+    def eta now
+      if @queue.empty?
+        nil
+      elsif @queue.first[:time] < now
+        0
+      else
+        @queue.first[:time] - now
+      end
+    end
   end
 
 end

@@ -250,6 +250,8 @@ module Cron
     def dequeue! now
       if @queue.empty?
         nil
+      elsif @queue.first[:timestamp] > now.to_i
+        nil
       else
         record = @queue.delete_at(0)
         spec = record[:spec]
