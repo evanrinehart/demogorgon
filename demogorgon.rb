@@ -114,7 +114,7 @@ class Demogorgon
               @dialogs[s][:connect][
                 s.to_i,
                 lambda{|msg| s.write(msg) rescue nil},
-                lambda{ s.close }
+                lambda{ s.shutdown }
               ]
             when :dialog
               msg = io.gets

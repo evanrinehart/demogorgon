@@ -61,7 +61,8 @@ class Acid
 
     define name.to_s do |*args|
       @log_file.puts(JSON.generate([name] + args))
-      @state = block[@state, *args]
+      @state, retval = block[@state, *args]
+      retval
     end
   end
 
@@ -82,7 +83,7 @@ class Acid
 
     begin
       if line0
-        state = @read[JSON.parse(line0)['checkpoint']]
+        state = @read[JSON.parse(line0, :symbolize_names => true)['checkpoint']]
       else
         log_file.close
         state = @init[]
